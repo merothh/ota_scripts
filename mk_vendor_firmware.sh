@@ -10,6 +10,11 @@ assert(){
     fi
 }
 
+zip_cleanup(){
+    zip -d $1 firmware-update/vbmeta.img firmware-update/dtbo.img boot.img compatibility.zip system.new.dat.br system.patch.dat system.transfer.list
+    assert
+}
+
 unzip_ota(){
     echo -e "\n$($cyan)// Unzipping $($yellow)$1$($reset)\n"
     rm -rf .workspace
@@ -74,6 +79,8 @@ if [ -z "$1" ]; then
     echo "usage: $0 full_ota.zip"
     exit
 fi
+
+zip_cleanup $1
 
 # Update OTA with a patched vendor.new.dat.br with force decrypt disabled fstab.qcom
 unzip_ota $1
