@@ -11,6 +11,7 @@ assert(){
 }
 
 zip_cleanup(){
+    echo -e "\n$($cyan)// Cleaning up $($yellow)$1$($reset)\n"
     zip -d $1 firmware-update/vbmeta.img firmware-update/dtbo.img boot.img compatibility.zip system.new.dat.br system.patch.dat system.transfer.list
     assert
 }
@@ -19,13 +20,21 @@ unzip_ota(){
     echo -e "\n$($cyan)// Unzipping $($yellow)$1$($reset)\n"
     rm -rf .workspace
     mkdir .workspace
-    unzip $1 vendor.new.dat.br vendor.transfer.list vendor.patch.dat -d .workspace
+    unzip $1 META-INF/com/google/android/updater-script vendor.new.dat.br vendor.transfer.list vendor.patch.dat -d .workspace
     assert
+    cd .workspace
+}
+
+sed_updater(){
+    echo -e "\n$($cyan)// Cleaning up $($yellow) updater-script$($reset)\n"
+    cp META-INF/com/google/android/updater-script updater-script-og
+    sed -i -e '/system/d' -e '/boot.img/d' -e '/vbmeta.img/d' -e '/dtbo.img/d' META-INF/com/google/android/updater-script
+    assert
+    git diff --no-index updater-script-og META-INF/com/google/android/updater-script > diff
 }
 
 extract_image(){
     echo -e "\n$($cyan)// Extracting $($yellow)vendor.img$($reset)\n"
-    cd .workspace
     brotli -d vendor.new.dat.br -o vendor.new.dat
     sdat2img vendor.transfer.list vendor.new.dat vendor.img
     assert
@@ -75,15 +84,23 @@ bro_compress(){
     rm vendor_patched/vendor.new.dat
 }
 
+zip_update(){
+    echo -e "\n$($cyan)// Updating $($yellow)$1$($cyan) with patched files $($reset)\n"
+    mkdir rezip
+    cp -r vendor_patched/* META-INF rezip
+    cd rezip
+    zip -r ../../$1  META-INF vendor.new.dat.br vendor.patch.dat vendor.transfer.list
+
+}
+
 if [ -z "$1" ]; then
     echo "usage: $0 full_ota.zip"
     exit
 fi
 
 zip_cleanup $1
-
-# Update OTA with a patched vendor.new.dat.br with force decrypt disabled fstab.qcom
 unzip_ota $1
+sed_updater
 extract_image
 mount_vendor
 replace_fstab replace/fstab.qcom
@@ -92,3 +109,4 @@ sparse_vendor
 convert_dat
 rename_vendor
 bro_compress
+zip_update $1
